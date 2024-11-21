@@ -1,5 +1,63 @@
 import Product from '../models/Product.js';
 
+// Get all products
+export const getProducts = async (req, res) => {
+  try {
+    const { search } = req.query;
+    
+    let query = {};
+    if (search) {
+      query = {
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+          { category: { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+
+    const products = await Product.find(query)
+      .populate('relatedProducts')
+      .populate({
+        path: 'reviews.user',
+        select: 'name email image'
+      })
+      .sort({ isFeatured: -1, order: 1, createdAt: -1 });
+
+    res.json(products);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ message: 'Failed to fetch products' });
+  }
+};
+
+// Search products
+export const searchProducts = async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.json([]);
+    }
+
+    const products = await Product.find({
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { category: { $regex: query, $options: 'i' } }
+      ]
+    })
+    .select('name price images category')
+    .limit(12)
+    .sort('-createdAt');
+
+    res.json(products);
+  } catch (error) {
+    console.error('Error searching products:', error);
+    res.status(500).json({ message: 'Failed to search products' });
+  }
+};
+
 // Get all reviews (admin)
 export const getAllReviews = async (req, res) => {
   try {
@@ -28,69 +86,10 @@ export const getAllReviews = async (req, res) => {
   }
 };
 
-// Get all products
-export const getProducts = async (req, res) => {
-  try {
-    const { search } = req.query;
-    
-    let query = {};
-    if (search) {
-      query = {
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } }
-        ]
-      };
-    }
-
-    const products = await Product.find(query)
-      .populate('category')
-      .populate('relatedProducts')
-      .populate({
-        path: 'reviews.user',
-        select: 'name email image'
-      })
-      .sort({ isFeatured: -1, order: 1, createdAt: -1 });
-
-    res.json(products);
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({ message: 'Failed to fetch products' });
-  }
-};
-
-// Search products
-export const searchProducts = async (req, res) => {
-  try {
-    const { query } = req.query;
-    
-    if (!query) {
-      return res.json([]);
-    }
-
-    const products = await Product.find({
-      $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } }
-      ]
-    })
-    .populate('category')
-    .select('name price images category')
-    .limit(12)
-    .sort('-createdAt');
-
-    res.json(products);
-  } catch (error) {
-    console.error('Error searching products:', error);
-    res.status(500).json({ message: 'Failed to search products' });
-  }
-};
-
 // Get single product
 export const getProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
-      .populate('category')
       .populate('relatedProducts')
       .populate({
         path: 'reviews.user',
@@ -131,9 +130,7 @@ export const updateProduct = async (req, res) => {
       req.params.id,
       req.body,
       { new: true, runValidators: true }
-    )
-    .populate('category')
-    .populate('relatedProducts');
+    ).populate('relatedProducts');
     
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
@@ -213,7 +210,7 @@ export const addReview = async (req, res) => {
       rating,
       comment,
       photos: photos || [],
-      verified: true,
+      verified: true, // Set to true if user has purchased the product
       createdAt: new Date()
     };
 
@@ -310,6 +307,24 @@ export const verifyReview = async (req, res) => {
   }
 };
 
+// Filter products by category
+export const filterProductsByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+    const products = await Product.find({ category })
+      .populate('relatedProducts')
+      .populate({
+        path: 'reviews.user',
+        select: 'name email image'
+      })
+      .sort({ createdAt: -1 });
+
+    res.json(products);
+  } catch (error) {
+    console.error('Error filtering products by category:', error);
+    res.status(500).json({ message: 'Failed to filter products' });
+  }
+};
 // Delete review (admin)
 export const deleteReview = async (req, res) => {
   try {
@@ -318,12 +333,10 @@ export const deleteReview = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    const review = product.reviews.id(req.params.reviewId);
-    if (!review) {
-      return res.status(404).json({ message: 'Review not found' });
-    }
-
-    review.remove();
+    // Use pull operator to remove the review
+    product.reviews = product.reviews.filter(
+      review => review._id.toString() !== req.params.reviewId
+    );
     
     // Update average rating
     if (product.reviews.length > 0) {
