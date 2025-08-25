@@ -7,9 +7,10 @@
     "dev": "concurrently \"vite\" \"nodemon --quiet --watch server --ext js,mjs,cjs,json server/index.js\"",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview",
-    "server": "node index.js",
-    "gen:vapid": "node server/scripts/genVapid.js"
+  "preview": "vite preview",
+  "server": "node index.js",
+  "start": "node server/index.js",
+  "gen:vapid": "node server/scripts/genVapid.js"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^16.5.0",
