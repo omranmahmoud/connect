@@ -9,7 +9,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "server": "node index.js",
-    "start": "node server/index.js",
+    "start": "node index.js",
     "gen:vapid": "node server/scripts/genVapid.js"
   },
   "dependencies": {
